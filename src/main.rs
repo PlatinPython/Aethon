@@ -4,12 +4,64 @@ use std::path::PathBuf;
 use std::process::{exit, Command};
 use std::{fs, str};
 
+use iced::widget::{button, container};
+use iced::{Element, Length, Sandbox, Settings, Theme};
 use serde_json::{json, Value};
 
-fn main() -> Result<(), Box<dyn Error>> {
+struct Manager;
+
+#[derive(Debug, Clone)]
+enum Message {
+    Run,
+}
+
+impl Sandbox for Manager {
+    type Message = Message;
+
+    fn new() -> Self {
+        Manager
+    }
+
+    fn title(&self) -> String {
+        String::from("Aethon")
+    }
+
+    fn update(&mut self, message: Self::Message) {
+        match message {
+            Message::Run => run().unwrap(),
+        };
+    }
+
+    fn view(&self) -> Element<'_, Self::Message> {
+        container(button("Run").on_press(Message::Run))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x()
+            .center_y()
+            .padding(10)
+            .into()
+    }
+
+    fn theme(&self) -> Theme {
+        Theme::Dark
+    }
+}
+
+fn main() -> Result<(), iced::Error> {
+    Manager::run(Settings::default())
+}
+
+fn run() -> Result<(), Box<dyn Error>> {
     let launcher_path = get_install_location();
     println!("Selected path: {:?}", launcher_path);
 
+    add_profile()?;
+
+    Command::new(launcher_path).spawn()?;
+    Ok(())
+}
+
+fn add_profile() -> Result<(), Box<dyn Error>> {
     let path = dirs::config_dir()
         .map(|path| path.join(".minecraft/launcher_profiles.json"))
         .expect("Path should exist.");
@@ -25,8 +77,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         "lastVersionId": "latest-release"
     });
     fs::write(&path, serde_json::to_string(&value)?)?;
-
-    Command::new(launcher_path).spawn()?;
     Ok(())
 }
 
