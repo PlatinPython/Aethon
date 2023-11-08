@@ -1,45 +1,179 @@
 use std::error::Error;
-use std::io::{stdin, stdout, Write};
-use std::path::PathBuf;
-use std::process::{exit, Command};
+use std::path::{Path, PathBuf};
+use std::process::Command as Program;
 use std::{fs, str};
 
-use iced::widget::{button, container};
-use iced::{Element, Length, Sandbox, Settings, Theme};
+use iced::widget::{button, column, container, horizontal_space, radio, row, text, text_input};
+use iced::{executor, Application, Command, Element, Length, Settings, Theme};
 use serde_json::{json, Value};
 
-struct Manager;
+#[derive(Debug, Clone)]
+enum Manager {
+    Startup,
+    Setup {
+        launchers: (Option<PathBuf>, Option<PathBuf>),
+        selection: Option<Launcher>,
+        path: PathBuf,
+    },
+    Main(PathBuf),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Launcher {
+    Store,
+    Legacy,
+    Custom,
+}
 
 #[derive(Debug, Clone)]
 enum Message {
+    Loaded(Manager),
+    LauncherSelected(Launcher),
+    LauncherPathChanged(String),
+    Select,
+    Selected(Option<PathBuf>),
+    Continue,
     Run,
 }
 
-impl Sandbox for Manager {
+impl Application for Manager {
+    type Executor = executor::Default;
     type Message = Message;
+    type Theme = Theme;
+    type Flags = ();
 
-    fn new() -> Self {
-        Manager
+    fn new(_: Self::Flags) -> (Self, Command<Self::Message>) {
+        (Manager::Startup, Command::perform(load(), Message::Loaded))
     }
 
     fn title(&self) -> String {
         String::from("Aethon")
     }
 
-    fn update(&mut self, message: Self::Message) {
-        match message {
-            Message::Run => run().unwrap(),
-        };
+    fn update(&mut self, message: Self::Message) -> Command<Message> {
+        match self {
+            Manager::Startup => {
+                if let Message::Loaded(manager) = message {
+                    *self = manager;
+                }
+                Command::none()
+            }
+            Manager::Setup {
+                launchers: (store_launcher, legacy_launcher),
+                selection,
+                path,
+            } => match message {
+                Message::LauncherSelected(launcher) => {
+                    *selection = Some(launcher);
+                    match launcher {
+                        Launcher::Store => *path = store_launcher.clone().unwrap_or(PathBuf::new()),
+                        Launcher::Legacy => {
+                            *path = legacy_launcher.clone().unwrap_or(PathBuf::new())
+                        }
+                        _ => {}
+                    }
+                    Command::none()
+                }
+                Message::LauncherPathChanged(path_text) => {
+                    *path = PathBuf::from(path_text);
+                    Command::none()
+                }
+                Message::Select => Command::perform(select_launcher(), Message::Selected),
+                Message::Selected(Some(new_path)) => {
+                    *path = new_path;
+                    Command::none()
+                }
+                Message::Continue => {
+                    *self = Manager::Main(path.clone());
+
+                    Command::none()
+                }
+                _ => Command::none(),
+            },
+            Manager::Main(path) => {
+                if let Message::Run = message {
+                    run(path).unwrap()
+                }
+                Command::none()
+            }
+        }
     }
 
     fn view(&self) -> Element<'_, Self::Message> {
-        container(button("Run").on_press(Message::Run))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x()
-            .center_y()
-            .padding(10)
-            .into()
+        match self {
+            Manager::Startup => container(text("Loading..."))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center_x()
+                .center_y()
+                .padding(10)
+                .into(),
+            Manager::Setup {
+                selection, path, ..
+            } => {
+                let path_widget = {
+                    let mut path_text =
+                        text_input("Launcher path", path.to_str().unwrap_or("Broken"));
+                    if selection.is_some_and(|launcher| launcher == Launcher::Custom) {
+                        path_text = path_text.on_input(Message::LauncherPathChanged);
+                    }
+
+                    let path_button = button("Select").on_press_maybe(
+                        if selection.is_some_and(|launcher| launcher == Launcher::Custom) {
+                            Some(Message::Select)
+                        } else {
+                            None
+                        },
+                    );
+
+                    row![path_text, path_button].spacing(10)
+                };
+
+                let options = column![
+                    radio(
+                        "Store",
+                        Launcher::Store,
+                        *selection,
+                        Message::LauncherSelected
+                    ),
+                    radio(
+                        "Legacy",
+                        Launcher::Legacy,
+                        *selection,
+                        Message::LauncherSelected
+                    ),
+                    radio(
+                        "Custom",
+                        Launcher::Custom,
+                        *selection,
+                        Message::LauncherSelected
+                    ),
+                    path_widget,
+                    row![
+                        horizontal_space(Length::Fill),
+                        button("Continue").on_press_maybe(if path.exists() {
+                            Some(Message::Continue)
+                        } else {
+                            None
+                        })
+                    ]
+                ];
+                container(options.spacing(10))
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .center_x()
+                    .center_y()
+                    .padding(10)
+                    .into()
+            }
+            Manager::Main(_) => container(button("Run").on_press(Message::Run))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center_x()
+                .center_y()
+                .padding(10)
+                .into(),
+        }
     }
 
     fn theme(&self) -> Theme {
@@ -51,13 +185,12 @@ fn main() -> Result<(), iced::Error> {
     Manager::run(Settings::default())
 }
 
-fn run() -> Result<(), Box<dyn Error>> {
-    let launcher_path = get_install_location();
+fn run(launcher_path: &Path) -> Result<(), Box<dyn Error>> {
     println!("Selected path: {:?}", launcher_path);
 
     add_profile()?;
 
-    Command::new(launcher_path).spawn()?;
+    Program::new(launcher_path).spawn()?;
     Ok(())
 }
 
@@ -80,89 +213,60 @@ fn add_profile() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn get_install_location() -> PathBuf {
-    match get_potential_locations() {
-        None => {
-            print!("Found no install location. Please install the vanilla launcher. Would you like to provide a different path to check? [Y/n] ");
-            stdout().flush().unwrap();
-            let mut answer = String::new();
-            stdin().read_line(&mut answer).unwrap();
-            if !answer.trim().eq_ignore_ascii_case("y") {
-                println!("Abort.");
-                exit(1);
-            }
-            loop {
-                print!("Please provide the path: ");
-                stdout().flush().unwrap();
-                let mut path = String::new();
-                stdin().read_line(&mut path).unwrap();
-                let path = PathBuf::from(path.trim());
-                if path.exists()
-                    && path
-                        .extension()
-                        .map_or(false, |extension| extension.eq("exe"))
-                {
-                    return path;
-                } else {
-                    println!("Invalid path.");
-                }
-            }
-        }
-        Some(paths) => {
-            println!("Found paths:");
-            for (i, path) in paths.iter().enumerate() {
-                println!("{}. {:?}", i + 1, path);
-            }
-            loop {
-                print!("Please select one (1-{}) ", paths.len());
-                stdout().flush().unwrap();
-                let mut answer = String::new();
-                stdin().read_line(&mut answer).unwrap();
-                if let Ok(selection) = answer.trim().parse::<usize>() {
-                    if selection - 1 < paths.len() {
-                        return paths[selection - 1].clone();
-                    } else {
-                        println!("Number out of bounds.");
-                    }
-                } else {
-                    println!("Failed to parse number.");
-                }
-            }
-        }
+async fn select_launcher() -> Option<PathBuf> {
+    rfd::AsyncFileDialog::new()
+        .set_title("Select Minecraft Launcher")
+        .add_filter("Application", &["exe"])
+        .pick_file()
+        .await
+        .map(|m| m.path().to_path_buf())
+}
+
+async fn load() -> Manager {
+    let launchers = get_potential_locations();
+    let (selection, path) = match &launchers {
+        (None, None) => (None, PathBuf::new()),
+        (Some(launcher), None) => (Some(Launcher::Store), launcher.clone()),
+        (None, Some(launcher)) => (Some(Launcher::Legacy), launcher.clone()),
+        (Some(launcher), Some(_)) => (Some(Launcher::Store), launcher.clone()),
+    };
+    Manager::Setup {
+        launchers,
+        selection,
+        path,
     }
 }
 
-fn get_potential_locations() -> Option<Vec<PathBuf>> {
-    let mut paths = vec![];
+fn get_potential_locations() -> (Option<PathBuf>, Option<PathBuf>) {
+    let mut store_launcher = None;
+    let mut legacy_launcher = None;
     if let Ok(drives) = get_drives() {
         for drive in drives {
-            let launcher = PathBuf::from(format!(
-                "{}/XboxGames/Minecraft Launcher/Content/Minecraft.exe",
-                drive
-            ));
-            if launcher.exists() {
-                paths.push(launcher);
+            if store_launcher.is_none() {
+                let launcher = PathBuf::from(format!(
+                    "{}/XboxGames/Minecraft Launcher/Content/Minecraft.exe",
+                    drive
+                ));
+                if launcher.exists() {
+                    store_launcher = Some(launcher);
+                }
             }
-            let launcher = PathBuf::from(format!(
-                "{}/Program Files (x86)/Minecraft Launcher/MinecraftLauncher.exe",
-                drive
-            ));
-            if launcher.exists() {
-                paths.push(launcher);
+            if legacy_launcher.is_none() {
+                let launcher = PathBuf::from(format!(
+                    "{}/Program Files (x86)/Minecraft Launcher/MinecraftLauncher.exe",
+                    drive
+                ));
+                if launcher.exists() {
+                    legacy_launcher = Some(launcher);
+                }
             }
         }
-    } else {
-        return None;
     }
-    if paths.is_empty() {
-        None
-    } else {
-        Some(paths)
-    }
+    (store_launcher, legacy_launcher)
 }
 
 fn get_drives() -> Result<Vec<String>, Box<dyn Error>> {
-    let output = Command::new("cmd")
+    let output = Program::new("cmd")
         .args(["/C", "wmic logicaldisk get deviceid"])
         .output()?;
 
