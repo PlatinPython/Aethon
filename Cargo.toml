@@ -10,3 +10,5 @@ iced = { version = "0.10", features = ["tokio"] }
 tokio = "1.33"
 rfd = "0.12"
 sysinfo = "0.29"
+single-instance = "0.3"
+once_cell = "1.18"

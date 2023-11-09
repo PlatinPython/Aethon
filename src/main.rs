@@ -5,15 +5,25 @@ use std::path::{Path, PathBuf};
 use std::process::Command as Program;
 use std::{env, fs, process};
 
-use iced::widget::{button, column, container, horizontal_space, radio, row, text, text_input};
+use iced::widget::{
+    button, column, container, horizontal_space, radio, row, text, text_input, Container,
+};
 use iced::{executor, Application, Command, Element, Length, Settings, Theme};
+use once_cell::sync::Lazy;
 use serde_json::{json, Value};
+use single_instance::SingleInstance;
 use sysinfo::{DiskExt, RefreshKind, System, SystemExt};
+
+const UUID: &str = "aethon-f082c8ab-df27-4daf-9d09-48ff15ef0204";
+
+static INSTANCE: Lazy<SingleInstance> =
+    Lazy::new(|| SingleInstance::new(UUID).expect("SingleInstance object creation failed."));
 
 #[derive(Debug, Clone)]
 enum Manager {
     Startup,
     FolderNotEmptyWarn,
+    SingleInstanceWarn,
     Setup {
         launchers: (Option<PathBuf>, Option<PathBuf>),
         selection: Option<Launcher>,
@@ -73,6 +83,12 @@ impl Application for Manager {
                 }
                 _ => Command::none(),
             },
+            Manager::SingleInstanceWarn => {
+                if let Message::WarnClose = message {
+                    process::exit(0);
+                }
+                Command::none()
+            }
             Manager::Setup {
                 launchers: (store_launcher, legacy_launcher),
                 selection,
@@ -115,15 +131,9 @@ impl Application for Manager {
 
     fn view(&self) -> Element<'_, Self::Message> {
         match self {
-            Manager::Startup => container(text("Loading..."))
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .center_x()
-                .center_y()
-                .padding(10)
-                .into(),
+            Manager::Startup => centering_container(text("Loading...")).into(),
             Manager::FolderNotEmptyWarn => {
-                container({
+                centering_container({
                     column![
                         container(text("Current folder is not empty, please move the executable to an empty folder (Recommended) or continue anyway (Not recommended).")).width(Length::Fill).center_x(),
                         row![
@@ -134,13 +144,19 @@ impl Application for Manager {
                             horizontal_space(Length::FillPortion(2)),
                         ].spacing(10)
                     ].spacing(10)
-                })
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .center_x()
-                    .center_y()
-                    .padding(10)
-                    .into()
+                }).into()
+            }
+            Manager::SingleInstanceWarn => {
+                centering_container({
+                    column![
+                    container(text("Another instance is already running.")).width(Length::Fill).center_x(),
+                    row![
+                        horizontal_space(Length::FillPortion(2)),
+                        button("Ok").width(Length::Fill).on_press(Message::WarnClose),
+                        horizontal_space(Length::FillPortion(2)),
+                    ].spacing(10)
+                ].spacing(10)
+                }).into()
             }
             Manager::Setup {
                 selection, path, ..
@@ -213,21 +229,9 @@ impl Application for Manager {
                         )
                     ]
                 ];
-                container(options.spacing(10))
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .center_x()
-                    .center_y()
-                    .padding(10)
-                    .into()
+                centering_container(options.spacing(10)).into()
             }
-            Manager::Main(_) => container(button("Run").on_press(Message::Run))
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .center_x()
-                .center_y()
-                .padding(10)
-                .into(),
+            Manager::Main(_) => centering_container(button("Run").on_press(Message::Run)).into(),
         }
     }
 
@@ -278,6 +282,9 @@ async fn select_launcher() -> Option<PathBuf> {
 }
 
 async fn load() -> Manager {
+    if !INSTANCE.is_single() {
+        return Manager::SingleInstanceWarn;
+    }
     if env::current_exe()
         .ok()
         .as_deref()
@@ -338,4 +345,15 @@ fn get_drives() -> Vec<PathBuf> {
         .map(DiskExt::mount_point)
         .map(Path::to_path_buf)
         .collect()
+}
+
+fn centering_container<'a, Message>(
+    content: impl Into<Element<'a, Message>>,
+) -> Container<'a, Message> {
+    container(content)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x()
+        .center_y()
+        .padding(10)
 }
