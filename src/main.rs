@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::process::Command as Program;
