@@ -1,10 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::error::Error;
-
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command as Program;
-use std::fs;
 
 use iced::widget::{button, column, container, horizontal_space, radio, row, text, text_input};
 use iced::{executor, Application, Command, Element, Length, Settings, Theme};
@@ -116,8 +115,24 @@ impl Application for Manager {
                 selection, path, ..
             } => {
                 let path_widget = {
-                    let mut path_text =
-                        text_input("Launcher path", path.to_str().unwrap_or("Broken"));
+                    let mut path_text = text_input(
+                        "Launcher path",
+                        path.to_str()
+                            .map(|path| {
+                                if path.is_empty() {
+                                    if selection
+                                        .is_some_and(|launcher| launcher == Launcher::Custom)
+                                    {
+                                        ""
+                                    } else {
+                                        "Not found"
+                                    }
+                                } else {
+                                    path
+                                }
+                            })
+                            .unwrap_or(""),
+                    );
                     if selection.is_some_and(|launcher| launcher == Launcher::Custom) {
                         path_text = path_text.on_input(Message::LauncherPathChanged);
                     }
@@ -155,11 +170,16 @@ impl Application for Manager {
                     path_widget,
                     row![
                         horizontal_space(Length::Fill),
-                        button("Continue").on_press_maybe(if path.exists() {
-                            Some(Message::Continue)
-                        } else {
-                            None
-                        })
+                        button("Continue").on_press_maybe(
+                            if path.exists()
+                                && path.is_file()
+                                && path.extension().is_some_and(|extension| extension == "exe")
+                            {
+                                Some(Message::Continue)
+                            } else {
+                                None
+                            }
+                        )
                     ]
                 ];
                 container(options.spacing(10))
