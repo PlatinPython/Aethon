@@ -1,9 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::error::Error;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command as Program;
+use std::{env, fs, process};
 
 use iced::widget::{button, column, container, horizontal_space, radio, row, text, text_input};
 use iced::{executor, Application, Command, Element, Length, Settings, Theme};
@@ -13,6 +13,7 @@ use sysinfo::{DiskExt, RefreshKind, System, SystemExt};
 #[derive(Debug, Clone)]
 enum Manager {
     Startup,
+    FolderNotEmptyWarn,
     Setup {
         launchers: (Option<PathBuf>, Option<PathBuf>),
         selection: Option<Launcher>,
@@ -31,6 +32,8 @@ enum Launcher {
 #[derive(Debug, Clone)]
 enum Message {
     Loaded(Manager),
+    WarnContinue,
+    WarnClose,
     LauncherSelected(Launcher),
     LauncherPathChanged(String),
     Select,
@@ -61,6 +64,15 @@ impl Application for Manager {
                 }
                 Command::none()
             }
+            Manager::FolderNotEmptyWarn => match message {
+                Message::WarnContinue => Command::perform(load_setup(), Message::Loaded),
+                Message::WarnClose => process::exit(0),
+                Message::Loaded(manager) => {
+                    *self = manager;
+                    Command::none()
+                }
+                _ => Command::none(),
+            },
             Manager::Setup {
                 launchers: (store_launcher, legacy_launcher),
                 selection,
@@ -88,7 +100,6 @@ impl Application for Manager {
                 }
                 Message::Continue => {
                     *self = Manager::Main(path.clone());
-
                     Command::none()
                 }
                 _ => Command::none(),
@@ -111,6 +122,26 @@ impl Application for Manager {
                 .center_y()
                 .padding(10)
                 .into(),
+            Manager::FolderNotEmptyWarn => {
+                container({
+                    column![
+                        container(text("Current folder is not empty, please move the executable to an empty folder (Recommended) or continue anyway (Not recommended).")).width(Length::Fill).center_x(),
+                        row![
+                            horizontal_space(Length::FillPortion(2)),
+                            button("Continue").width(Length::Fill).on_press(Message::WarnContinue),
+                            horizontal_space(Length::Fill),
+                            button("Close").width(Length::Fill).on_press(Message::WarnClose),
+                            horizontal_space(Length::FillPortion(2)),
+                        ].spacing(10)
+                    ].spacing(10)
+                })
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .center_x()
+                    .center_y()
+                    .padding(10)
+                    .into()
+            }
             Manager::Setup {
                 selection, path, ..
             } => {
@@ -247,6 +278,22 @@ async fn select_launcher() -> Option<PathBuf> {
 }
 
 async fn load() -> Manager {
+    if env::current_exe()
+        .ok()
+        .as_deref()
+        .and_then(Path::parent)
+        .map(Path::read_dir)
+        .and_then(Result::ok)
+        .map(|dir| dir.filter_map(Result::ok))
+        .map(|dir| dir.count() > 1)
+        .unwrap_or(true)
+    {
+        return Manager::FolderNotEmptyWarn;
+    }
+    load_setup().await
+}
+
+async fn load_setup() -> Manager {
     let launchers = get_potential_locations();
     let (selection, path) = match &launchers {
         (None, None) => (None, PathBuf::new()),
