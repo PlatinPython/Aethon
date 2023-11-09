@@ -1,13 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::error::Error;
+
 use std::path::{Path, PathBuf};
 use std::process::Command as Program;
-use std::{fs, str};
+use std::fs;
 
 use iced::widget::{button, column, container, horizontal_space, radio, row, text, text_input};
 use iced::{executor, Application, Command, Element, Length, Settings, Theme};
 use serde_json::{json, Value};
+use sysinfo::{DiskExt, RefreshKind, System, SystemExt};
 
 #[derive(Debug, Clone)]
 enum Manager {
@@ -242,42 +244,31 @@ async fn load() -> Manager {
 fn get_potential_locations() -> (Option<PathBuf>, Option<PathBuf>) {
     let mut store_launcher = None;
     let mut legacy_launcher = None;
-    if let Ok(drives) = get_drives() {
-        for drive in drives {
-            if store_launcher.is_none() {
-                let launcher = PathBuf::from(format!(
-                    "{}/XboxGames/Minecraft Launcher/Content/Minecraft.exe",
-                    drive
-                ));
-                if launcher.exists() {
-                    store_launcher = Some(launcher);
-                }
+
+    for drive in get_drives() {
+        if store_launcher.is_none() {
+            let launcher = drive.join("XboxGames/Minecraft Launcher/Content/Minecraft.exe");
+            if launcher.exists() {
+                store_launcher = Some(launcher);
             }
-            if legacy_launcher.is_none() {
-                let launcher = PathBuf::from(format!(
-                    "{}/Program Files (x86)/Minecraft Launcher/MinecraftLauncher.exe",
-                    drive
-                ));
-                if launcher.exists() {
-                    legacy_launcher = Some(launcher);
-                }
+        }
+        if legacy_launcher.is_none() {
+            let launcher =
+                drive.join("Program Files (x86)/Minecraft Launcher/MinecraftLauncher.exe");
+            if launcher.exists() {
+                legacy_launcher = Some(launcher);
             }
         }
     }
+
     (store_launcher, legacy_launcher)
 }
 
-fn get_drives() -> Result<Vec<String>, Box<dyn Error>> {
-    let output = Program::new("cmd")
-        .args(["/C", "wmic logicaldisk get deviceid"])
-        .output()?;
-
-    let output = str::from_utf8(&output.stdout)?.trim();
-
-    Ok(output
-        .lines()
-        .skip(1)
-        .map(str::trim)
-        .map(String::from)
-        .collect())
+fn get_drives() -> Vec<PathBuf> {
+    let sys = System::new_with_specifics(RefreshKind::new().with_disks_list());
+    sys.disks()
+        .iter()
+        .map(DiskExt::mount_point)
+        .map(Path::to_path_buf)
+        .collect()
 }
