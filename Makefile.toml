@@ -1,0 +1,29 @@
+[tasks.build]
+command = "cargo"
+args = ["build"]
+
+[tasks.move]
+script_runner = "@duckscript"
+script = "mv ./target/debug/aethon.exe ./target/debug/aethon/aethon.exe"
+
+[tasks.reset]
+script_runner = "@duckscript"
+script = "rm -rf ./target/debug/aethon"
+
+[tasks.run]
+command = "./target/debug/aethon/aethon.exe"
+
+[tasks.build-flow]
+dependencies = ["build", "move"]
+
+[tasks.reset-build-flow]
+dependencies = ["reset", "build-flow"]
+
+[tasks.run-flow]
+dependencies = ["build-flow", "run"]
+
+[tasks.reset-run-flow]
+dependencies = ["reset-build-flow", "run"]
+
+[tasks.default]
+alias = "run-flow"
