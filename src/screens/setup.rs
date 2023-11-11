@@ -1,5 +1,7 @@
+use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
 
+use crate::CONFIG;
 use iced::widget::{button, column, horizontal_space, radio, row, text_input};
 use iced::{Command, Element, Length};
 use sysinfo::{DiskExt, RefreshKind, System, SystemExt};
@@ -62,7 +64,19 @@ impl Screen for Setup {
                 (Command::none(), None)
             }
             Message::Selected(None) => (Command::none(), None),
-            Message::Continue => (Command::none(), Some(Main::new(self.path.clone()).into())),
+            Message::Continue => {
+                let path = self.path.clone();
+                (
+                    Command::perform(
+                        async {
+                            CONFIG.lock().await.deref_mut().launcher_path = Some(path);
+                            CONFIG.lock().await.save().await
+                        },
+                        Messages::Save,
+                    ),
+                    Some(Main::new(self.path.clone()).into()),
+                )
+            }
         }
     }
 
@@ -149,6 +163,9 @@ impl From<Setup> for Screens {
 }
 
 pub(crate) async fn load_setup() -> Setup {
+    // FIXME
+    let _ = CONFIG.lock().await.save().await;
+
     let launchers = get_potential_locations();
     let (selection, path) = match &launchers {
         (None, None) => (None, PathBuf::new()),

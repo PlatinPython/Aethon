@@ -2,9 +2,16 @@
 
 mod screens;
 
+use std::path::PathBuf;
+use std::{env, io};
+
+use iced::futures::lock::Mutex;
 use iced::{executor, Application, Command, Element, Settings, Theme};
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+use serde_with::skip_serializing_none;
 use single_instance::SingleInstance;
+use tokio::fs;
 
 use crate::screens::startup::{load, Startup};
 use crate::screens::{startup, Messages, Screen, Screens};
@@ -14,9 +21,40 @@ const UUID: &str = "aethon-f082c8ab-df27-4daf-9d09-48ff15ef0204";
 static INSTANCE: Lazy<SingleInstance> =
     Lazy::new(|| SingleInstance::new(UUID).expect("SingleInstance object creation failed."));
 
-#[derive(Debug, Clone)]
+static CONFIG: Lazy<Mutex<Config>> = Lazy::new(|| Mutex::new(Config::default()));
+
+#[derive(Debug)]
 struct Manager {
     current_screen: Screens,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct Config {
+    launcher_path: Option<PathBuf>,
+}
+
+impl Config {
+    async fn save(&self) -> Result<(), Error> {
+        let config_path = env::current_exe()
+            .map_err(|error| Error::Io(error.kind()))?
+            .parent()
+            .ok_or(Error::NoParent)?
+            .join("config.json");
+        fs::write(
+            config_path,
+            serde_json::to_string(self).map_err(|error| Error::Json(error.to_string()))?,
+        )
+        .await
+        .map_err(|error| Error::Io(error.kind()))
+    }
+}
+
+#[derive(Debug, Clone)]
+enum Error {
+    Io(io::ErrorKind),
+    Json(String),
+    NoParent,
 }
 
 impl Application for Manager {

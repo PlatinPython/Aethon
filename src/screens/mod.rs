@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use crate::Error;
 use iced::widget::{container, Container};
 use iced::{Command, Element, Length};
 
@@ -45,6 +46,7 @@ pub(crate) enum Screens {
 
 #[derive(Debug, Clone)]
 pub(crate) enum Messages {
+    Save(Result<(), Error>),
     Startup(startup::Message),
     FolderNotEmptyWarn(folder_warn::Message),
     SingleInstanceWarn(instance_warn::Message),
