@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
-use crate::Error;
+use crate::screens::error::Error;
+use crate::Errors;
 use iced::widget::{container, Container};
 use iced::{Command, Element, Length};
 
@@ -10,6 +11,7 @@ use crate::screens::main::Main;
 use crate::screens::setup::Setup;
 use crate::screens::startup::Startup;
 
+pub(crate) mod error;
 pub(crate) mod folder_warn;
 pub(crate) mod instance_warn;
 pub(crate) mod main;
@@ -42,14 +44,16 @@ pub(crate) enum Screens {
     SingleInstanceWarn(SingleInstanceWarn),
     Setup(Setup),
     Main(Main),
+    Error(Error),
 }
 
 #[derive(Debug, Clone)]
 pub(crate) enum Messages {
-    Save(Result<(), Error>),
+    Save(Result<(), Errors>),
     Startup(startup::Message),
     FolderNotEmptyWarn(folder_warn::Message),
     SingleInstanceWarn(instance_warn::Message),
     Setup(setup::Message),
     Main(main::Message),
+    Error(error::Message),
 }

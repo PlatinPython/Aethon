@@ -13,6 +13,7 @@ use serde_with::skip_serializing_none;
 use single_instance::SingleInstance;
 use tokio::fs;
 
+use crate::screens::error::Error;
 use crate::screens::startup::{load, Startup};
 use crate::screens::{startup, Messages, Screen, Screens};
 
@@ -35,23 +36,23 @@ struct Config {
 }
 
 impl Config {
-    async fn save(&self) -> Result<(), Error> {
+    async fn save(&self) -> Result<(), Errors> {
         let config_path = env::current_exe()
-            .map_err(|error| Error::Io(error.kind()))?
+            .map_err(|error| Errors::Io(error.kind()))?
             .parent()
-            .ok_or(Error::NoParent)?
+            .ok_or(Errors::NoParent)?
             .join("config.json");
         fs::write(
             config_path,
-            serde_json::to_string(self).map_err(|error| Error::Json(error.to_string()))?,
+            serde_json::to_string(self).map_err(|error| Errors::Json(error.to_string()))?,
         )
         .await
-        .map_err(|error| Error::Io(error.kind()))
+        .map_err(|error| Errors::Io(error.kind()))
     }
 }
 
 #[derive(Debug, Clone)]
-enum Error {
+enum Errors {
     Io(io::ErrorKind),
     Json(String),
     NoParent,
@@ -79,6 +80,13 @@ impl Application for Manager {
     }
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
+        if let Messages::Save(Err(error)) = message {
+            self.update_screen(Screens::Error(Error::new(
+                error,
+                Box::new(self.current_screen.clone()),
+            )));
+            return Command::none();
+        }
         match &mut self.current_screen {
             Screens::Startup(screen) => {
                 if let Messages::Startup(message) = message {
@@ -135,6 +143,17 @@ impl Application for Manager {
                     Command::none()
                 }
             }
+            Screens::Error(screen) => {
+                if let Messages::Error(message) = message {
+                    let (command, screen) = screen.update(message);
+                    if let Some(screen) = screen {
+                        self.update_screen(screen);
+                    }
+                    command
+                } else {
+                    Command::none()
+                }
+            }
         }
     }
 
@@ -145,6 +164,7 @@ impl Application for Manager {
             Screens::SingleInstanceWarn(screen) => screen.view(),
             Screens::Setup(screen) => screen.view(),
             Screens::Main(screen) => screen.view(),
+            Screens::Error(screen) => screen.view(),
         }
     }
 
