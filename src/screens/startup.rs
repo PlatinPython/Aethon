@@ -1,31 +1,43 @@
 use std::ops::DerefMut;
-use std::path::Path;
 use std::{env, fs};
 
 use iced::widget::text;
 use iced::{Command, Element};
 
+use crate::screens::error::Error;
 use crate::screens::folder_warn::FolderNotEmptyWarn;
 use crate::screens::instance_warn::SingleInstanceWarn;
 use crate::screens::main::Main;
 use crate::screens::setup::load_setup;
 use crate::screens::{centering_container, Messages, Screen, Screens};
-use crate::{Config, CONFIG, INSTANCE};
+use crate::{Config, Errors, CONFIG, INSTANCE};
 
 #[derive(Debug, Clone)]
 pub(crate) struct Startup;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Message {
-    Loaded(Screens),
+    Loaded(Result<Screens, Errors>),
 }
 
 impl Screen for Startup {
     type Message = Message;
 
     fn update(&mut self, message: Self::Message) -> (Command<Messages>, Option<Screens>) {
-        let Message::Loaded(screen) = message;
-        (Command::none(), Some(screen))
+        let Message::Loaded(result) = message;
+        (
+            Command::none(),
+            match result {
+                Ok(screen) => Some(screen),
+                Err(error) => {
+                    println!("Hi");
+                    Some(Screens::Error(Error::new(
+                        error,
+                        Box::new(Screens::Startup(self.clone())),
+                    )))
+                },
+            },
+        )
     }
 
     fn view(&self) -> Element<'_, Messages> {
@@ -39,39 +51,37 @@ impl From<Startup> for Screens {
     }
 }
 
-pub(crate) async fn load() -> Screens {
+pub(crate) async fn load() -> Result<Screens, Errors> {
     if !INSTANCE.is_single() {
-        return SingleInstanceWarn.into();
+        return Ok(SingleInstanceWarn.into());
     }
     let config_path = env::current_exe()
-        .ok()
-        .as_deref()
-        .and_then(Path::parent)
-        .map(|path| path.join("config.json"));
-    if !config_path.as_deref().is_some_and(Path::exists)
+        .map_err(|error| Errors::Io(error.kind()))?
+        .parent()
+        .ok_or(Errors::NoParent)?
+        .join("config.json");
+    if !config_path.exists()
         && env::current_exe()
-            .ok()
-            .as_deref()
-            .and_then(Path::parent)
-            .map(Path::read_dir)
-            .and_then(Result::ok)
-            .map(|dir| dir.filter_map(Result::ok))
-            .map(|dir| dir.count() > 1)
-            .unwrap_or(true)
+            .map_err(|error| Errors::Io(error.kind()))?
+            .parent()
+            .ok_or(Errors::NoParent)?
+            .read_dir()
+            .map_err(|error| Errors::Io(error.kind()))?
+            .count()
+            > 1
     {
-        return FolderNotEmptyWarn.into();
+        return Ok(FolderNotEmptyWarn.into());
     }
-    if let Some(config_path) = config_path {
-        if config_path.exists() {
-            // FIXME
-            *CONFIG.lock().await.deref_mut() =
-                serde_json::from_str::<Config>(&fs::read_to_string(config_path).unwrap()).unwrap();
-        }
+    if config_path.exists() {
+        *CONFIG.lock().await.deref_mut() = serde_json::from_str::<Config>(
+            &fs::read_to_string(config_path).map_err(|error| Errors::Io(error.kind()))?,
+        )
+        .map_err(|error| Errors::Json(error.to_string()))?;
     }
     if let Some(launcher_path) = &CONFIG.lock().await.launcher_path {
         if launcher_path.exists() {
-            return Main::new(launcher_path.clone()).into();
+            return Ok(Main::new(launcher_path.clone()).into());
         }
     }
-    load_setup().await.into()
+    load_setup().await.map(Into::into)
 }

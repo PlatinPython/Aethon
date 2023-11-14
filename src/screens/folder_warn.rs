@@ -1,9 +1,11 @@
 use std::process;
 
+use crate::Errors;
 use iced::widget::{button, column, container, horizontal_space, row, text};
 use iced::{Command, Element, Length};
 
-use crate::screens::setup::load_setup;
+use crate::screens::error::Error;
+use crate::screens::setup::{load_setup, Setup};
 use crate::screens::{centering_container, Messages, Screen, Screens};
 
 #[derive(Debug, Clone)]
@@ -11,7 +13,7 @@ pub(crate) struct FolderNotEmptyWarn;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Message {
-    Loaded(Screens),
+    Loaded(Result<Setup, Errors>),
     Continue,
     Close,
 }
@@ -20,10 +22,19 @@ impl Screen for FolderNotEmptyWarn {
 
     fn update(&mut self, message: Self::Message) -> (Command<Messages>, Option<Screens>) {
         match message {
-            Message::Loaded(screen) => (Command::none(), Some(screen)),
+            Message::Loaded(result) => (
+                Command::none(),
+                match result {
+                    Ok(screen) => Some(screen.into()),
+                    Err(error) => Some(Screens::Error(Error::new(
+                        error,
+                        Box::new(Screens::FolderNotEmptyWarn(self.clone())),
+                    ))),
+                },
+            ),
             Message::Continue => (
-                Command::perform(load_setup(), |setup| {
-                    Messages::FolderNotEmptyWarn(Message::Loaded(setup.into()))
+                Command::perform(load_setup(), |result| {
+                    Messages::FolderNotEmptyWarn(Message::Loaded(result))
                 }),
                 None,
             ),

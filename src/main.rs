@@ -69,8 +69,8 @@ impl Application for Manager {
             Manager {
                 current_screen: Startup.into(),
             },
-            Command::perform(load(), |screens| {
-                Messages::Startup(startup::Message::Loaded(screens))
+            Command::perform(load(), |result| {
+                Messages::Startup(startup::Message::Loaded(result))
             }),
         )
     }

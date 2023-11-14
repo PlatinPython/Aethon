@@ -1,7 +1,7 @@
 use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
 
-use crate::CONFIG;
+use crate::{Errors, CONFIG};
 use iced::widget::{button, column, horizontal_space, radio, row, text_input};
 use iced::{Command, Element, Length};
 use sysinfo::{DiskExt, RefreshKind, System, SystemExt};
@@ -162,9 +162,8 @@ impl From<Setup> for Screens {
     }
 }
 
-pub(crate) async fn load_setup() -> Setup {
-    // FIXME
-    let _ = CONFIG.lock().await.save().await;
+pub(crate) async fn load_setup() -> Result<Setup, Errors> {
+    CONFIG.lock().await.save().await?;
 
     let launchers = get_potential_locations();
     let (selection, path) = match &launchers {
@@ -173,11 +172,11 @@ pub(crate) async fn load_setup() -> Setup {
         (None, Some(launcher)) => (Some(Launcher::Legacy), launcher.clone()),
         (Some(launcher), Some(_)) => (Some(Launcher::Store), launcher.clone()),
     };
-    Setup {
+    Ok(Setup {
         launchers,
         selection,
         path,
-    }
+    })
 }
 
 async fn select_launcher() -> Option<PathBuf> {
