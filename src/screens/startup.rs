@@ -35,7 +35,7 @@ impl Screen for Startup {
                         error,
                         Box::new(Screens::Startup(self.clone())),
                     )))
-                },
+                }
             },
         )
     }
