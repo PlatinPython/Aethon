@@ -1,9 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod paths;
 mod screens;
 
+use std::io;
 use std::path::PathBuf;
-use std::{env, io};
 
 use iced::futures::lock::Mutex;
 use iced::{executor, Application, Command, Element, Settings, Theme};
@@ -37,11 +38,7 @@ struct Config {
 
 impl Config {
     async fn save(&self) -> Result<(), Errors> {
-        let config_path = env::current_exe()
-            .map_err(|error| Errors::Io(error.kind()))?
-            .parent()
-            .ok_or(Errors::NoParent)?
-            .join("config.json");
+        let config_path = paths::CONFIG.clone()?;
         fs::write(
             config_path,
             serde_json::to_string(self).map_err(|error| Errors::Json(error.to_string()))?,

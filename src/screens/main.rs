@@ -1,21 +1,22 @@
-use std::error::Error;
-use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
+use std::fs;
+use std::path::PathBuf;
 use std::process::Command as Program;
-use std::{env, fs, io};
 
 use iced::widget::button;
 use iced::{Command, Element};
 use serde_json::{json, Value};
 
+use crate::screens::error::Error;
 use crate::screens::{centering_container, Messages, Screen, Screens};
+use crate::{paths, Errors};
 
 #[derive(Debug, Clone)]
 pub(crate) struct Main(PathBuf);
 
 #[derive(Debug, Clone)]
 pub(crate) enum Message {
-    Run,
+    TryRun,
+    Run(Result<(), Errors>),
 }
 
 impl Main {
@@ -27,13 +28,29 @@ impl Main {
 impl Screen for Main {
     type Message = Message;
 
-    fn update(&mut self, _: Self::Message) -> (Command<Messages>, Option<Screens>) {
-        run(&self.0).unwrap();
-        (Command::none(), None)
+    fn update(&mut self, message: Self::Message) -> (Command<Messages>, Option<Screens>) {
+        match message {
+            Message::TryRun => (
+                Command::perform(run(self.0.clone()), |result| {
+                    Messages::Main(Message::Run(result))
+                }),
+                None,
+            ),
+            Message::Run(result) => (
+                Command::none(),
+                match result {
+                    Ok(_) => None,
+                    Err(error) => Some(Screens::Error(Error::new(
+                        error,
+                        Box::new(Screens::Main(self.clone())),
+                    ))),
+                },
+            ),
+        }
     }
 
     fn view(&self) -> Element<'_, Messages> {
-        centering_container(button("Run").on_press(Messages::Main(Message::Run))).into()
+        centering_container(button("Run").on_press(Messages::Main(Message::TryRun))).into()
     }
 }
 
@@ -43,33 +60,31 @@ impl From<Main> for Screens {
     }
 }
 
-fn run(launcher_path: &Path) -> Result<(), Box<dyn Error>> {
+async fn run(launcher_path: PathBuf) -> Result<(), Errors> {
     println!("Selected path: {:?}", launcher_path);
 
-    add_profile()?;
+    add_profile().await?;
 
-    Program::new(launcher_path).spawn()?;
+    Program::new(launcher_path)
+        .spawn()
+        .map_err(|error| Errors::Io(error.kind()))?;
     Ok(())
 }
 
-fn add_instance() -> Result<PathBuf, Box<dyn Error>> {
-    let instance_path = env::current_exe()?
-        .parent()
-        .map(|path| path.join("instance"));
-    if let Some(instance_path) = instance_path {
-        if !instance_path.exists() {
-            fs::create_dir(&instance_path)?;
-        }
-        return Ok(instance_path);
+async fn add_instance() -> Result<PathBuf, Errors> {
+    let path = paths::INSTANCE.clone()?;
+    if !path.exists() {
+        fs::create_dir(&path).map_err(|error| Errors::Io(error.kind()))?;
     }
-    Err(io::Error::from(ErrorKind::Other).into())
+    Ok(path)
 }
 
-fn add_profile() -> Result<(), Box<dyn Error>> {
-    let path = dirs::config_dir()
-        .map(|path| path.join(".minecraft/launcher_profiles.json"))
-        .expect("Path should exist.");
-    let mut value = serde_json::from_str::<Value>(&fs::read_to_string(&path)?)?;
+async fn add_profile() -> Result<(), Errors> {
+    let path = paths::PROFILE.clone()?;
+    let mut value = serde_json::from_str::<Value>(
+        &fs::read_to_string(&path).map_err(|error| Errors::Io(error.kind()))?,
+    )
+    .map_err(|error| Errors::Json(error.to_string()))?;
     if !value["profiles"].is_object() {
         value["profiles"] = json!({});
     }
@@ -79,8 +94,11 @@ fn add_profile() -> Result<(), Box<dyn Error>> {
         "type": "custom",
         "icon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAABlBMVEUAAAD4APit1uGJAAAAI0lEQVRIx2P4DwUMMDAqMCowKjAqQKTAaDCMCowKjAqQKQAABpD8LlM5SL4AAAAASUVORK5CYII",
         "lastVersionId": "latest-release",
-        "gameDir": add_instance()?,
+        "gameDir": add_instance().await?,
     });
-    fs::write(&path, serde_json::to_string(&value)?)?;
-    Ok(())
+    fs::write(
+        &path,
+        serde_json::to_string(&value).map_err(|error| Errors::Json(error.to_string()))?,
+    )
+    .map_err(|error| Errors::Io(error.kind()))
 }

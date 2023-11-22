@@ -1,5 +1,5 @@
+use std::fs;
 use std::ops::DerefMut;
-use std::{env, fs};
 
 use iced::widget::text;
 use iced::{Command, Element};
@@ -10,7 +10,7 @@ use crate::screens::instance_warn::SingleInstanceWarn;
 use crate::screens::main::Main;
 use crate::screens::setup::load_setup;
 use crate::screens::{centering_container, Messages, Screen, Screens};
-use crate::{Config, Errors, CONFIG, INSTANCE};
+use crate::{paths, Config, Errors, CONFIG, INSTANCE};
 
 #[derive(Debug, Clone)]
 pub(crate) struct Startup;
@@ -55,16 +55,10 @@ pub(crate) async fn load() -> Result<Screens, Errors> {
     if !INSTANCE.is_single() {
         return Ok(SingleInstanceWarn.into());
     }
-    let config_path = env::current_exe()
-        .map_err(|error| Errors::Io(error.kind()))?
-        .parent()
-        .ok_or(Errors::NoParent)?
-        .join("config.json");
+    let config_path = paths::CONFIG.clone()?;
     if !config_path.exists()
-        && env::current_exe()
-            .map_err(|error| Errors::Io(error.kind()))?
-            .parent()
-            .ok_or(Errors::NoParent)?
+        && paths::CURRENT_DIR
+            .clone()?
             .read_dir()
             .map_err(|error| Errors::Io(error.kind()))?
             .count()
