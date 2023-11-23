@@ -11,7 +11,7 @@ use crate::widget::instance;
 use crate::{paths, Errors};
 
 #[derive(Debug, Clone)]
-pub(crate) struct Main(PathBuf);
+pub(crate) struct Main(PathBuf, bool);
 
 #[derive(Debug, Clone)]
 pub(crate) enum Message {
@@ -21,7 +21,7 @@ pub(crate) enum Message {
 
 impl Main {
     pub(crate) fn new(path: PathBuf) -> Self {
-        Main(path)
+        Main(path, false)
     }
 }
 
@@ -30,12 +30,15 @@ impl Screen for Main {
 
     fn update(&mut self, message: Self::Message) -> (Command<Messages>, Option<Screens>) {
         match message {
-            Message::TryRun => (
-                Command::perform(run(self.0.clone()), |result| {
-                    Messages::Main(Message::Run(result))
-                }),
-                None,
-            ),
+            Message::TryRun => {
+                self.1 = true;
+                (
+                    Command::perform(run(self.0.clone()), |result| {
+                        Messages::Main(Message::Run(result))
+                    }),
+                    None,
+                )
+            }
             Message::Run(result) => (
                 Command::none(),
                 match result {
@@ -51,7 +54,7 @@ impl Screen for Main {
 
     fn view(&self) -> Element<'_, Messages> {
         Element::from(centering_container(
-            instance::Instance::new(Messages::Main(Message::TryRun))
+            instance::Instance::new(Messages::Main(Message::TryRun), self.1)
                 .width(120)
                 .height(150),
         ))

@@ -4,7 +4,8 @@ use std::io;
 use std::path::PathBuf;
 
 use iced::futures::lock::Mutex;
-use iced::{executor, Application, Command, Element, Settings, Theme};
+use iced::window::Position;
+use iced::{executor, window, Application, Command, Element, Settings, Theme};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
@@ -178,5 +179,11 @@ impl Manager {
 }
 
 fn main() -> Result<(), iced::Error> {
-    Manager::run(Settings::default())
+    Manager::run(Settings {
+        window: window::Settings {
+            position: Position::Centered,
+            ..window::Settings::default()
+        },
+        ..Settings::default()
+    })
 }

@@ -3,7 +3,7 @@ use iced::widget::container::Appearance;
 use iced::widget::{button, column, component, container, vertical_space, Component};
 use iced::{Alignment, Background, Color, Element, Length, Renderer, Theme};
 
-use crate::widget::mouse_area::mouse_area;
+use crate::widget::click_hover_area::ClickHoverArea;
 
 pub(crate) struct Instance<Message>
 where
@@ -18,8 +18,7 @@ where
 #[derive(Debug, Clone)]
 pub(crate) enum Event {
     Click,
-    Enter,
-    Exit,
+    Update(bool),
     Run,
 }
 
@@ -27,10 +26,10 @@ impl<Message> Instance<Message>
 where
     Message: Clone,
 {
-    pub(crate) fn new(on_run: Message) -> Self {
+    pub(crate) fn new(on_run: Message, is_hovered: bool) -> Self {
         Self {
             on_run,
-            is_hovered: false,
+            is_hovered,
             width: Length::Shrink,
             height: Length::Shrink,
         }
@@ -56,18 +55,9 @@ where
 
     fn update(&mut self, _: &mut Self::State, event: Self::Event) -> Option<Message> {
         match event {
-            Event::Click => {
-                println!("Click");
-
-                None
-            }
-            Event::Enter => {
-                self.is_hovered = true;
-
-                None
-            }
-            Event::Exit => {
-                self.is_hovered = false;
+            Event::Click => None,
+            Event::Update(is_hovered) => {
+                self.is_hovered = is_hovered;
 
                 None
             }
@@ -82,7 +72,8 @@ where
             "Sample text".into()
         };
 
-        mouse_area(
+        // mouse_area(
+        ClickHoverArea::new(
             container(
                 column!["Sample text", vertical_space(Length::Fill), bottom]
                     .padding(10)
@@ -97,9 +88,8 @@ where
                 ..Default::default()
             }),
         )
-        .on_press(Event::Click)
-        .on_enter(Event::Enter)
-        .on_exit(Event::Exit)
+        .on_click(Event::Click)
+        .on_hover_change(Event::Update)
         .into()
     }
 }
