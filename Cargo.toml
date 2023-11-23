@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 dirs = "5.0"
 serde_json = "1.0"
-iced = { version = "0.10", features = ["tokio"] }
+iced = { version = "0.10", features = ["tokio", "lazy", "advanced"] }
 tokio = { version = "1.33", features = ["fs"] }
 rfd = "0.12"
 sysinfo = "0.29"

@@ -18,7 +18,7 @@ pub(crate) mod main;
 pub(crate) mod setup;
 pub(crate) mod startup;
 
-fn centering_container<'a, Message>(
+pub(crate) fn centering_container<'a, Message>(
     content: impl Into<Element<'a, Message>>,
 ) -> Container<'a, Message> {
     container(content)

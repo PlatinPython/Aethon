@@ -1,8 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod paths;
-mod screens;
-
 use std::io;
 use std::path::PathBuf;
 
@@ -17,6 +14,10 @@ use tokio::fs;
 use crate::screens::error::Error;
 use crate::screens::startup::{load, Startup};
 use crate::screens::{startup, Messages, Screen, Screens};
+
+mod paths;
+mod screens;
+mod widget;
 
 const UUID: &str = "aethon-f082c8ab-df27-4daf-9d09-48ff15ef0204";
 

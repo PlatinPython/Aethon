@@ -2,12 +2,12 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command as Program;
 
-use iced::widget::button;
-use iced::{Command, Element};
+use iced::{Color, Command, Element};
 use serde_json::{json, Value};
 
 use crate::screens::error::Error;
 use crate::screens::{centering_container, Messages, Screen, Screens};
+use crate::widget::instance;
 use crate::{paths, Errors};
 
 #[derive(Debug, Clone)]
@@ -50,7 +50,12 @@ impl Screen for Main {
     }
 
     fn view(&self) -> Element<'_, Messages> {
-        centering_container(button("Run").on_press(Messages::Main(Message::TryRun))).into()
+        Element::from(centering_container(
+            instance::Instance::new(Messages::Main(Message::TryRun))
+                .width(120)
+                .height(150),
+        ))
+        .explain(Color::WHITE)
     }
 }
 
