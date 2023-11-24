@@ -1,17 +1,21 @@
 [package]
 name = "aethon"
 version = "0.1.0"
+authors = ["PlatinPython <platinpython@protonmail.com>"]
 edition = "2021"
+license = "MIT"
+description = "A minecraft mod manager."
+
 
 [dependencies]
-dirs = "5.0"
-serde_json = "1.0"
-iced = { version = "0.10", features = ["tokio", "lazy", "advanced", "debug"] }
-tokio = { version = "1.33", features = ["fs"] }
-tokio-stream = { version = "0.1", features = ["fs"] }
-rfd = "0.12"
-sysinfo = "0.29"
-single-instance = "0.3"
-once_cell = "1.18"
-serde = { version = "1.0", features = ["derive"] }
-serde_with = "3.4"
+dirs = "5.0.1"
+iced = { version = "0.10.0", features = ["advanced", "debug",  "lazy", "tokio"] }
+once_cell = "1.18.0"
+rfd = "0.12.1"
+serde = { version = "1.0.193", features = ["derive"] }
+serde_json = "1.0.108"
+serde_with = "3.4.0"
+single-instance = "0.3.3"
+sysinfo = "0.29.10"
+tokio = { version = "1.34.0", features = ["fs"] }
+tokio-stream = { version = "0.1.14", features = ["fs"] }
