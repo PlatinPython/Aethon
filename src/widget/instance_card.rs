@@ -3,9 +3,10 @@ use iced::widget::container::Appearance;
 use iced::widget::{button, column, component, container, vertical_space, Component};
 use iced::{Alignment, Background, Color, Element, Length, Renderer, Theme};
 
+use crate::instance::Instance;
 use crate::widget::click_hover_area::ClickHoverArea;
 
-pub(crate) struct Instance<Message>
+pub(crate) struct InstanceCard<'a, Message>
 where
     Message: Clone,
 {
@@ -13,6 +14,7 @@ where
     is_hovered: bool,
     width: Length,
     height: Length,
+    instance: &'a Instance,
 }
 
 #[derive(Debug, Clone)]
@@ -22,16 +24,17 @@ pub(crate) enum Event {
     Run,
 }
 
-impl<Message> Instance<Message>
+impl<'a, Message> InstanceCard<'a, Message>
 where
     Message: Clone,
 {
-    pub(crate) fn new(on_run: Message, is_hovered: bool) -> Self {
+    pub(crate) fn new(on_run: Message, is_hovered: bool, instance: &'a Instance) -> Self {
         Self {
             on_run,
             is_hovered,
             width: Length::Shrink,
             height: Length::Shrink,
+            instance,
         }
     }
 
@@ -46,7 +49,7 @@ where
     }
 }
 
-impl<Message> Component<Message, Renderer> for Instance<Message>
+impl<'a, Message> Component<Message, Renderer> for InstanceCard<'a, Message>
 where
     Message: Clone,
 {
@@ -69,10 +72,9 @@ where
         let bottom: Element<Self::Event> = if self.is_hovered {
             button("Run").on_press(Event::Run).into()
         } else {
-            "Sample text".into()
+            self.instance.name().into()
         };
 
-        // mouse_area(
         ClickHoverArea::new(
             container(
                 column!["Sample text", vertical_space(Length::Fill), bottom]
@@ -94,11 +96,11 @@ where
     }
 }
 
-impl<'a, Message> From<Instance<Message>> for Element<'a, Message, Renderer>
+impl<'a, Message> From<InstanceCard<'a, Message>> for Element<'a, Message, Renderer>
 where
     Message: 'a + Clone,
 {
-    fn from(value: Instance<Message>) -> Self {
+    fn from(value: InstanceCard<'a, Message>) -> Self {
         component(value)
     }
 }

@@ -4,6 +4,7 @@ use std::ops::DerefMut;
 use iced::widget::text;
 use iced::{Command, Element};
 
+use crate::instance::collect_instances;
 use crate::screens::error::Error;
 use crate::screens::folder_warn::FolderNotEmptyWarn;
 use crate::screens::instance_warn::SingleInstanceWarn;
@@ -29,13 +30,10 @@ impl Screen for Startup {
             Command::none(),
             match result {
                 Ok(screen) => Some(screen),
-                Err(error) => {
-                    println!("Hi");
-                    Some(Screens::Error(Error::new(
-                        error,
-                        Box::new(Screens::Startup(self.clone())),
-                    )))
-                }
+                Err(error) => Some(Screens::Error(Error::new(
+                    error,
+                    Box::new(Screens::Startup(self.clone())),
+                ))),
             },
         )
     }
@@ -74,7 +72,7 @@ pub(crate) async fn load() -> Result<Screens, Errors> {
     }
     if let Some(launcher_path) = &CONFIG.lock().await.launcher_path {
         if launcher_path.exists() {
-            return Ok(Main::new(launcher_path.clone()).into());
+            return Ok(Main::new(launcher_path.clone(), collect_instances().await?).into());
         }
     }
     load_setup().await.map(Into::into)

@@ -1,13 +1,15 @@
 use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
 
-use crate::{Errors, CONFIG};
 use iced::widget::{button, column, horizontal_space, radio, row, text_input};
 use iced::{Command, Element, Length};
 use sysinfo::{DiskExt, RefreshKind, System, SystemExt};
 
+use crate::instance::{collect_instances, Instance};
+use crate::screens::error::Error;
 use crate::screens::main::Main;
 use crate::screens::{centering_container, Messages, Screen, Screens};
+use crate::{Errors, CONFIG};
 
 #[derive(Debug, Clone)]
 pub(crate) struct Setup {
@@ -23,6 +25,7 @@ pub(crate) enum Message {
     Select,
     Selected(Option<PathBuf>),
     Continue,
+    InstancesLoaded(Result<Vec<Instance>, Errors>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,16 +70,28 @@ impl Screen for Setup {
             Message::Continue => {
                 let path = self.path.clone();
                 (
-                    Command::perform(
-                        async {
-                            CONFIG.lock().await.deref_mut().launcher_path = Some(path);
-                            CONFIG.lock().await.save().await
-                        },
-                        Messages::Save,
-                    ),
-                    Some(Main::new(self.path.clone()).into()),
+                    Command::batch(vec![
+                        Command::perform(
+                            async {
+                                CONFIG.lock().await.deref_mut().launcher_path = Some(path);
+                                CONFIG.lock().await.save().await
+                            },
+                            Messages::Save,
+                        ),
+                        Command::perform(collect_instances(), |result| {
+                            Messages::Setup(Message::InstancesLoaded(result))
+                        }),
+                    ]),
+                    None,
                 )
             }
+            Message::InstancesLoaded(result) => (
+                Command::none(),
+                match result {
+                    Ok(instances) => Some(Main::new(self.path.clone(), instances).into()),
+                    Err(error) => Some(Error::new(error, Box::new(self.clone().into())).into()),
+                },
+            ),
         }
     }
 

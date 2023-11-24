@@ -16,6 +16,7 @@ use crate::screens::error::Error;
 use crate::screens::startup::{load, Startup};
 use crate::screens::{startup, Messages, Screen, Screens};
 
+mod instance;
 mod paths;
 mod screens;
 mod widget;

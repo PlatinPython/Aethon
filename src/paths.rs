@@ -16,8 +16,8 @@ pub(crate) static CURRENT_DIR: Lazy<Result<PathBuf, Errors>> = Lazy::new(|| {
 pub(crate) static CONFIG: Lazy<Result<PathBuf, Errors>> =
     Lazy::new(|| CURRENT_DIR.clone().map(|path| path.join("config.json")));
 
-pub(crate) static INSTANCE: Lazy<Result<PathBuf, Errors>> =
-    Lazy::new(|| CURRENT_DIR.clone().map(|path| path.join("instance")));
+pub(crate) static INSTANCES: Lazy<Result<PathBuf, Errors>> =
+    Lazy::new(|| CURRENT_DIR.clone().map(|path| path.join("instances")));
 
 pub(crate) static PROFILE: Lazy<Result<PathBuf, Errors>> = Lazy::new(|| {
     dirs::config_dir()
