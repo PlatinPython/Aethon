@@ -1,12 +1,12 @@
 use std::process;
 
-use crate::Errors;
 use iced::widget::{button, column, container, horizontal_space, row, text};
 use iced::{Command, Element, Length};
 
 use crate::screens::error::Error;
 use crate::screens::setup::{load_setup, Setup};
 use crate::screens::{centering_container, Messages, Screen, Screens};
+use crate::Errors;
 
 #[derive(Debug, Clone)]
 pub(crate) struct FolderNotEmptyWarn;

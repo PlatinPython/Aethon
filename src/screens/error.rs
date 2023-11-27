@@ -1,7 +1,8 @@
-use crate::screens::{centering_container, Messages, Screen, Screens};
-use crate::Errors;
 use iced::widget::{button, column, container, horizontal_space, row, text};
 use iced::{Command, Element, Length};
+
+use crate::screens::{centering_container, Messages, Screen, Screens};
+use crate::Errors;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Error {

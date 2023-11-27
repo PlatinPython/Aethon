@@ -1,15 +1,15 @@
 use std::fmt::Debug;
 
-use crate::screens::error::Error;
-use crate::Errors;
 use iced::widget::{container, Container};
 use iced::{Command, Element, Length};
 
+use crate::screens::error::Error;
 use crate::screens::folder_warn::FolderNotEmptyWarn;
 use crate::screens::instance_warn::SingleInstanceWarn;
 use crate::screens::main::Main;
 use crate::screens::setup::Setup;
 use crate::screens::startup::Startup;
+use crate::Errors;
 
 pub(crate) mod error;
 pub(crate) mod folder_warn;
